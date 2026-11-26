@@ -35,6 +35,7 @@ def login(body: LoginIn):
         "username": body.username,
         "role": u["role"],
         "display": u["display"],
+        "session": token,
         "exp": time.time() + 12 * 3600,
     }
     return {"token": token, "username": body.username, "role": u["role"], "display": u["display"]}
@@ -57,4 +58,10 @@ def require_writer(user: dict[str, Any]) -> None:
 
 @router.get("/me")
 def me(authorization: str | None = Header(default=None)):
-    return current_user(authorization)
+    user = current_user(authorization)
+    return {
+        "username": user["username"],
+        "role": user["role"],
+        "display": user["display"],
+        "exp": user["exp"],
+    }

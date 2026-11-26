@@ -22,8 +22,9 @@ export const RulesView = {
       try { await api(`/api/rules/shadow/${id}/promote`, { method: "POST", body: "{}" }); await reload(); }
       catch (e) { err.value = e.message || String(e); }
     }
+    function stale(r) { return r.generation !== null && r.generation !== undefined && r.version < r.generation; }
     onMounted(reload);
-    return { official, shadows, form, err, msg, shadowBind, promote, reload };
+    return { official, shadows, form, err, msg, shadowBind, promote, reload, stale };
   },
   template: `
   <div class="grid">
@@ -42,12 +43,18 @@ export const RulesView = {
     </div>
     <div class="panel span-7">
       <h2>正式规则</h2>
-      <table><thead><tr><th>开关</th><th>环境</th><th>类型</th><th>%</th><th>版本</th></tr></thead>
+      <table><thead><tr><th>开关</th><th>环境</th><th>类型</th><th>%</th><th>版本</th><th>代数</th></tr></thead>
       <tbody>
         <tr v-for="r in official" :key="r.id">
-          <td>{{ r.flag_key }}</td><td>{{ r.env_code }}</td><td>{{ r.kind }}</td><td>{{ r.percent }}</td><td>v{{ r.version }}</td>
+          <td>{{ r.flag_key }}</td><td>{{ r.env_code }}</td><td>{{ r.kind }}</td><td>{{ r.percent }}</td>
+          <td>
+            v{{ r.version }}
+            <span class="pill danger" v-if="stale(r)">版本低于代</span>
+          </td>
+          <td>{{ r.generation === null || r.generation === undefined ? '—' : r.generation }}</td>
         </tr>
       </tbody></table>
+      <p class="muted">正式版本必须 ≥ 当前代；低于代的格子在对比页会点红。</p>
       <h2 style="margin-top:1rem">影子草案</h2>
       <table><thead><tr><th>ID</th><th>开关</th><th>环境</th><th>状态</th><th></th></tr></thead>
       <tbody>

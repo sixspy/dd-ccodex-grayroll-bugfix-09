@@ -32,10 +32,12 @@ def list_rules(authorization: str | None = Header(default=None)):
             dict(r)
             for r in conn.execute(
                 """
-                SELECT r.*, f.key AS flag_key, e.code AS env_code
+                SELECT r.*, f.key AS flag_key, e.code AS env_code,
+                       c.generation AS generation
                 FROM flag_rules r
                 JOIN flags f ON f.id=r.flag_id
                 JOIN environments e ON e.id=r.env_id
+                LEFT JOIN rule_counters c ON c.flag_id=r.flag_id AND c.env_id=r.env_id
                 WHERE r.official=1
                 ORDER BY r.id
                 """

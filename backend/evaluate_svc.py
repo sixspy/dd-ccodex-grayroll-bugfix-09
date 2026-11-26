@@ -65,6 +65,11 @@ def evaluate(body: EvalIn, authorization: str | None = Header(default=None)):
             "SELECT * FROM flag_rules WHERE flag_id=? AND env_id=? AND official=1",
             (fl["id"], env["id"]),
         ).fetchone()
+        counter = conn.execute(
+            "SELECT generation FROM rule_counters WHERE flag_id=? AND env_id=?",
+            (fl["id"], env["id"]),
+        ).fetchone()
+        generation = int(counter["generation"]) if counter else None
         if not rule:
             return {
                 "enabled": False,
@@ -72,6 +77,7 @@ def evaluate(body: EvalIn, authorization: str | None = Header(default=None)):
                 "flag_key": flag_key,
                 "env_code": env_code,
                 "subject_key": subject,
+                "generation": generation,
             }
         percent_hit = eval_percent(subject, int(rule["percent"]), flag_key)
         cohort_hit = False
@@ -91,6 +97,8 @@ def evaluate(body: EvalIn, authorization: str | None = Header(default=None)):
             "percent_hit": percent_hit,
             "cohort_hit": cohort_hit,
             "version": rule["version"],
+            "generation": generation,
+            "counter_bumped": generation is None or int(rule["version"]) >= generation,
             "flag_key": flag_key,
             "env_code": env_code,
             "subject_key": subject,
@@ -106,10 +114,13 @@ def eval_board(authorization: str | None = Header(default=None)):
             dict(r)
             for r in conn.execute(
                 """
-                SELECT f.key AS flag_key, f.status, e.code AS env_code, r.kind, r.percent, r.version, r.cohort_id
+                SELECT f.key AS flag_key, f.status, e.code AS env_code, r.kind, r.percent, r.version,
+                       r.cohort_id, c.generation AS generation,
+                       CASE WHEN c.generation IS NOT NULL AND r.version < c.generation THEN 1 ELSE 0 END AS stale
                 FROM flag_rules r
                 JOIN flags f ON f.id=r.flag_id
                 JOIN environments e ON e.id=r.env_id
+                LEFT JOIN rule_counters c ON c.flag_id=r.flag_id AND c.env_id=r.env_id
                 WHERE r.official=1
                 ORDER BY f.key, e.risk_level
                 """

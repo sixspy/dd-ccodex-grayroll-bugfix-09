@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from audit_svc import write_audit, write_history
 from auth import current_user, require_writer
+from counter import bump_generation
 from db import connect
 from locks import acquire, release
 from policies import assert_flag_publishable, assert_not_killed_or_allow_kill, describe_path
@@ -88,7 +89,7 @@ def publish(body: PublishIn, authorization: str | None = Header(default=None)):
             old = conn.execute(
                 "SELECT * FROM flag_rules WHERE flag_id=? AND env_id=? AND official=1", (fid, eid)
             ).fetchone()
-            ver = (old["version"] + 1) if old else 1
+            ver = bump_generation(conn, fid, eid, now)
             if old:
                 conn.execute("DELETE FROM flag_rules WHERE id=?", (old["id"],))
             conn.execute(
@@ -107,7 +108,7 @@ def publish(body: PublishIn, authorization: str | None = Header(default=None)):
             write_audit(conn, user["username"], "publish", "release", rid, describe_path("release", False))
             write_history(conn, user["username"], "publish", f"v{ver} {summary}", flag_id=fid, env_id=eid)
             conn.commit()
-            return {"mode": "official", "id": rid, "version": ver, "path": describe_path("release", False)}
+            return {"mode": "official", "id": rid, "version": ver, "counter_bumped": True, "path": describe_path("release", False)}
         finally:
             release(conn, key, user["username"])
             conn.commit()
@@ -132,7 +133,7 @@ def promote_release_shadow(shadow_id: int, authorization: str | None = Header(de
             old = conn.execute(
                 "SELECT * FROM flag_rules WHERE flag_id=? AND env_id=? AND official=1", (fid, eid)
             ).fetchone()
-            ver = (old["version"] + 1) if old else 1
+            ver = bump_generation(conn, fid, eid, now)
             if old:
                 conn.execute("DELETE FROM flag_rules WHERE id=?", (old["id"],))
             conn.execute(

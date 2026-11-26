@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from audit_svc import write_audit, write_history
 from auth import current_user, require_writer
+from counter import bump_generation
 from db import connect
 from locks import acquire, release
 from policies import assert_not_killed_or_allow_kill, describe_path
@@ -62,7 +63,7 @@ def kill_switch(body: KillIn, authorization: str | None = Header(default=None)):
             old = conn.execute(
                 "SELECT * FROM flag_rules WHERE flag_id=? AND env_id=? AND official=1", (fid, eid)
             ).fetchone()
-            ver = (old["version"] + 1) if old else 1
+            ver = bump_generation(conn, fid, eid, now)
             if old:
                 conn.execute("DELETE FROM flag_rules WHERE id=?", (old["id"],))
             conn.execute(
@@ -101,7 +102,7 @@ def promote_kill_shadow(shadow_id: int, authorization: str | None = Header(defau
             old = conn.execute(
                 "SELECT * FROM flag_rules WHERE flag_id=? AND env_id=? AND official=1", (fid, eid)
             ).fetchone()
-            ver = (old["version"] + 1) if old else 1
+            ver = bump_generation(conn, fid, eid, now)
             if old:
                 conn.execute("DELETE FROM flag_rules WHERE id=?", (old["id"],))
             conn.execute(

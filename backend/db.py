@@ -70,6 +70,26 @@ CREATE TABLE IF NOT EXISTS flag_rules(
   updated_at REAL NOT NULL,
   UNIQUE(flag_id, env_id, official)
 );
+CREATE TABLE IF NOT EXISTS rule_counters(
+  flag_id INTEGER NOT NULL REFERENCES flags(id),
+  env_id INTEGER NOT NULL REFERENCES environments(id),
+  generation INTEGER NOT NULL DEFAULT 0,
+  updated_at REAL NOT NULL,
+  PRIMARY KEY(flag_id, env_id)
+);
+CREATE TABLE IF NOT EXISTS rule_replays(
+  id INTEGER PRIMARY KEY,
+  ticket TEXT UNIQUE NOT NULL,
+  flag_id INTEGER NOT NULL REFERENCES flags(id),
+  env_id INTEGER NOT NULL REFERENCES environments(id),
+  source TEXT NOT NULL,
+  source_version INTEGER NOT NULL,
+  result_version INTEGER NOT NULL,
+  release_id INTEGER REFERENCES releases(id),
+  actor TEXT NOT NULL,
+  detail TEXT NOT NULL DEFAULT '',
+  created_at REAL NOT NULL
+);
 CREATE TABLE IF NOT EXISTS rule_shadows(
   id INTEGER PRIMARY KEY,
   flag_id INTEGER NOT NULL REFERENCES flags(id),
@@ -279,8 +299,24 @@ def seed(conn: sqlite3.Connection) -> None:
     conn.execute("INSERT INTO experiment_bridge_stub(id, note) VALUES(1, ?)", ("实验平台桥接空桩未接通",))
 
 
+def backfill_counters(conn: sqlite3.Connection) -> None:
+    """启动回填：代计数器至少抬到正式规则/发布里见过的最大版本，只升不降。"""
+    from counter import align_generation
+
+    rows = conn.execute(
+        "SELECT flag_id, env_id, MAX(version) AS v FROM ("
+        "  SELECT flag_id, env_id, version FROM flag_rules WHERE official=1"
+        "  UNION ALL"
+        "  SELECT flag_id, env_id, version FROM releases WHERE official=1"
+        ") GROUP BY flag_id, env_id"
+    ).fetchall()
+    for r in rows:
+        align_generation(conn, int(r["flag_id"]), int(r["env_id"]), int(r["v"]))
+
+
 def init_db() -> None:
     with connect() as conn:
         conn.executescript(SCHEMA)
         seed(conn)
+        backfill_counters(conn)
         conn.commit()

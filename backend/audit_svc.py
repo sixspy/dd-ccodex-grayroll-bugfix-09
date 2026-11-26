@@ -26,8 +26,14 @@ def write_history(conn, actor: str, action: str, detail: str, flag_id: int | Non
 
 
 @router.get("")
-def list_audit(authorization: str | None = Header(default=None), limit: int = 80):
+def list_audit(authorization: str | None = Header(default=None), limit: int = 80, ticket: str | None = None):
     current_user(authorization)
     with connect() as conn:
-        rows = conn.execute("SELECT * FROM audit_log ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+        if ticket:
+            rows = conn.execute(
+                "SELECT * FROM audit_log WHERE detail LIKE ? ORDER BY id DESC LIMIT ?",
+                (f"%{ticket}%", limit),
+            ).fetchall()
+        else:
+            rows = conn.execute("SELECT * FROM audit_log ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
     return {"items": [dict(r) for r in rows]}

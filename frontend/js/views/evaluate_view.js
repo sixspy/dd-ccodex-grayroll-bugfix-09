@@ -24,15 +24,29 @@ export const EvaluateView = {
       <div class="field"><label>主体键</label><input v-model="form.subject_key" /></div>
       <button class="btn" @click="run">求值</button>
       <div class="err" v-if="err">{{ err }}</div>
-      <pre v-if="result" style="margin-top:0.8rem">{{ result }}</pre>
+      <div v-if="result" style="margin-top:0.8rem">
+        <p>
+          <span class="pill" :class="result.enabled ? '' : 'warn'">{{ result.enabled ? '命中' : '未命中' }}</span>
+          <span class="pill">{{ result.reason }}</span>
+          <span class="pill" v-if="result.version">v{{ result.version }}</span>
+          <span class="pill" v-if="result.generation !== null && result.generation !== undefined">代{{ result.generation }}</span>
+          <span class="pill danger" v-if="result.counter_bumped === false">版本低于代</span>
+        </p>
+        <pre>{{ result }}</pre>
+      </div>
     </div>
     <div class="panel span-7">
       <h2>正式规则板</h2>
       <table v-if="board">
-        <thead><tr><th>开关</th><th>环境</th><th>类型</th><th>%</th><th>版本</th></tr></thead>
+        <thead><tr><th>开关</th><th>环境</th><th>类型</th><th>%</th><th>版本</th><th>代数</th></tr></thead>
         <tbody>
           <tr v-for="(r,i) in board.rules" :key="i">
-            <td>{{ r.flag_key }}</td><td>{{ r.env_code }}</td><td>{{ r.kind }}</td><td>{{ r.percent }}</td><td>v{{ r.version }}</td>
+            <td>{{ r.flag_key }}</td><td>{{ r.env_code }}</td><td>{{ r.kind }}</td><td>{{ r.percent }}</td>
+            <td>
+              v{{ r.version }}
+              <span class="pill danger" v-if="r.stale">低于代</span>
+            </td>
+            <td>{{ r.generation === null || r.generation === undefined ? '—' : r.generation }}</td>
           </tr>
         </tbody>
       </table>

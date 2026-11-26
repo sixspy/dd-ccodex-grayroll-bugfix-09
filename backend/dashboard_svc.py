@@ -6,6 +6,7 @@ from fastapi import APIRouter, Header
 from auth import current_user
 from db import connect
 from models import FLAG_STATUS_LABEL
+from replay_lib import ghost_count, ledger_rows, ledger_summary
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -36,6 +37,9 @@ def dashboard(authorization: str | None = Header(default=None)):
                 "SELECT id, action, detail, actor, created_at FROM change_history ORDER BY id DESC LIMIT 8"
             ).fetchall()
         ]
+        replays = ledger_rows(conn, limit=20)
+        replay_summary = ledger_summary(replays)
+        ghosts = ghost_count(conn)
     return {
         "flags": flags,
         "active": active,
@@ -45,4 +49,7 @@ def dashboard(authorization: str | None = Header(default=None)):
         "active_overrides": overrides,
         "by_status": by_status,
         "recent": recent,
+        "replay_tickets": replay_summary["total"],
+        "replay_ghost": ghosts,
+        "replays": replays[:8],
     }
